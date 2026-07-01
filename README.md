@@ -1,6 +1,14 @@
 # tf-molecule-route53-alias-record-aws
 
-Route53 alias record for pointing domains at AWS resources.
+Terraform molecule that creates a Route53 **alias A record** pointing a domain name at an AWS resource (ALB, CloudFront, S3 website, API Gateway, etc.) via its target DNS name and hosted zone ID.
+
+## Features
+
+- **Alias A record** — wraps the `tf-atom-route53-record-aws` atom with `record_type = "A"` and `is_alias = true`, so no manual IP management is required.
+- **Target health evaluation** — exposes `evaluate_target_health` (default `true`) to control Route53 health-check-aware routing.
+- **tf-label context chaining** — full [tf-label](https://github.com/PlatformStackPulse/tf-label) interface (`namespace`, `environment`, `stage`, `name`, `attributes`, `tags`, `context`, …) for consistent naming and tagging.
+- **Enable/disable switch** — set `enabled = false` (directly or via `context`) to create no resources while keeping the module in the configuration.
+- **SHA-pinned atom source** — the underlying record atom is pinned to an immutable commit for reproducible builds.
 
 ## Usage
 
@@ -12,10 +20,14 @@ module "dns" {
   environment = "prod"
   name        = "api"
 
-  zone_id       = "Z1234567890"
-  record_name   = "api.example.com"
-  alias_name    = module.alb.dns_name
-  alias_zone_id = module.alb.zone_id
+  # required inputs
+  zone_id       = "Z1234567890ABCDEFGHIJ"          # hosted zone that owns the record
+  record_name   = "api.example.com"                # the DNS name to create
+  alias_name    = module.alb.dns_name              # target's DNS name
+  alias_zone_id = module.alb.zone_id               # target's hosted zone ID
+
+  # optional
+  evaluate_target_health = true
 }
 ```
 
@@ -77,3 +89,18 @@ No resources.
 | <a name="output_fqdn"></a> [fqdn](#output\_fqdn) | FQDN of the record |
 | <a name="output_name"></a> [name](#output\_name) | Name of the record |
 <!-- END_TF_DOCS -->
+
+## Tests
+
+Unit tests live in `tests/unit/` and use a **mock AWS provider** (`mock_provider "aws" {}`), so no real AWS calls or credentials are required. They assert on plan-known values only (the tf-label `id`, the `enabled` flag, and atom pass-throughs).
+
+```bash
+terraform init -backend=false
+terraform test -test-directory=tests/unit
+```
+
+Integration tests (if present) live in `tests/integration/`:
+
+```bash
+terraform test -test-directory=tests/integration
+```
